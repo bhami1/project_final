@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Wormhole Space Travel Simulation</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: black;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #controlPanel {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .title {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        button {
+            background: rgba(100, 100, 255, 0.4);
+            color: white;
+            border: 1px solid rgba(150, 150, 255, 0.6);
+            border-radius: 3px;
+            padding: 5px 10px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: rgba(100, 100, 255, 0.6);
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin-top: 5px;
+        }
+        .slider-label {
+            width: 120px;
+        }
+        input[type="range"] {
+            width: 150px;
+        }
+        .value-display {
+            margin-left: 10px;
+            width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div id="controlPanel">
+        <div class="control-group">
+            <div class="title">Wormhole Travel</div>
+            <button id="startTravel">Enter Wormhole</button>
+            <button id="exitTravel">Exit Wormhole</button>
+        </div>
+        <div class="control-group">
+            <div class="title">Controls</div>
+            <div class="slider-container">
+                <div class="slider-label">Travel Speed</div>
+                <input type="range" id="speedSlider" min="0.1" max="5" step="0.1" value="1">
+                <div class="value-display" id="speedValue">1.0</div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-label">Distortion</div>
+                <input type="range" id="distortionSlider" min="0.1" max="5" step="0.1" value="1">
+                <div class="value-display" id="distortionValue">1.0</div>
+            </div>
+            <div class="slider-container">
+                <div class="slider-label">Vortex Intensity</div>
+                <input type="range" id="vortexSlider" min="0.1" max="5" step="0.1" value="1">
+                <div class="value-display" id="vortexValue">1.0</div>
+            </div>
+        </div>
+        <div class="control-group">
+            <div class="title">Destination</div>
+            <button id="dest1">Alpha Centauri</button>
+            <button id="dest2">Andromeda</button>
+            <button id="dest3">Sagittarius A*</button>
+        </div>
+    </div>
+    <canvas id="renderCanvas"></canvas>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+
+    <script>
+        const start = async function() {
+            // UI Elements
+            const speedSlider = document.getElementById("speedSlider");
+            const speedValue = document.getElementById("speedValue");
+            const distortionSlider = document.getElementById("distortionSlider");
+            const distortionValue = document.getElementById("distortionValue");
+            const vortexSlider = document.getElementById("vortexSlider");
+            const vortexValue = document.getElementById("vortexValue");
+            const startTravelBtn = document.getElementById("startTravel");
+            const exitTravelBtn = document.getElementById("exitTravel");
+            const destButtons = [
+                document.getElementById("dest1"),
+                document.getElementById("dest2"),
+                document.getElementById("dest3")
+            ];
+
+            // Update values display
+            speedSlider.addEventListener("input", () => {
+                speedValue.textContent = parseFloat(speedSlider.value).toFixed(1);
+            });
+            distortionSlider.addEventListener("input", () => {
+                distortionValue.textContent = parseFloat(distortionSlider.value).toFixed(1);
+            });
+            vortexSlider.addEventListener("input", () => {
+                vortexValue.textContent = parseFloat(vortexSlider.value).toFixed(1);
+            });
+
+            // Create canvas and engine
+            const canvas = document.getElementById("renderCanvas");
+            const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+
+            // Create scene
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+
+            // Create camera
+            const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 0, -20), scene);
+            camera.fov = 1.2;
+            camera.minZ = 0.1;
+
+            // Create a point light
+            const light = new BABYLON.PointLight("light", new BABYLON.Vector3(0, 0, 10), scene);
+            light.intensity = 0.8;
+            
+            // Create a directional light
+            const dirLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(0, 0, 1), scene);
+            dirLight.intensity = 0.5;
+
+            // Create GUI
+            const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+            
+            // Status text
+            const statusText = new BABYLON.GUI.TextBlock();
+            statusText.text = "Ready for wormhole jump";
+            statusText.color = "cyan";
+            statusText.fontSize = 24;
+            statusText.fontFamily = "Arial";
+            statusText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+            statusText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+            statusText.paddingTop = "20px";
+            statusText.outlineWidth = 2;
+            statusText.outlineColor = "black";
+            advancedTexture.addControl(statusText);
+
+            // Destination text
+            const destinationText = new BABYLON.GUI.TextBlock();
+            destinationText.text = "No destination selected";
+            destinationText.color = "white";
+            destinationText.fontSize = 20;
+            destinationText.fontFamily = "Arial";
+            destinationText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            destinationText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+            destinationText.paddingTop = "60px";
+            destinationText.paddingRight = "20px";
+            destinationText.outlineWidth = 1;
+            destinationText.outlineColor = "black";
+            advancedTexture.addControl(destinationText);
+
+            // Star field effect - vertex shader
+            BABYLON.Effect.ShadersStore["starFieldVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec2 uv;
+            uniform mat4 worldViewProjection;
+            varying vec2 vUV;
+            varying vec3 vPosition;
+            void main() {
+                gl_Position = worldViewProjection * vec4(position, 1.0);
+                vUV = uv;
+                vPosition = position;
+            }
+            `;
+
+            // Star field effect - fragment shader
+            BABYLON.Effect.ShadersStore["starFieldFragmentShader"] = `
+            precision highp float;
+            varying vec2 vUV;
+            varying vec3 vPosition;
+            uniform float time;
+            uniform vec2 resolution;
+            uniform float speed;
+            
+            float hash(vec3 p) {
+                p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+                p += dot(p, p.yxz + 33.33);
+                return fract((p.x + p.y) * p.z);
+            }
+            
+            float starField(vec3 p) {
+                vec3 ip = floor(p);
+                vec3 fp = fract(p);
+                
+                float brightness = 0.0;
+                
+                for (int i = -1; i <= 1; i++) {
+                    for (int j = -1; j <= 1; j++) {
+                        for (int k = -1; k <= 1; k++) {
+                            vec3 offset = vec3(float(i), float(j), float(k));
+                            float h = hash(ip + offset);
+                            
+                            if (h > 0.999) {
+                                vec3 starPos = offset + vec3(h, hash(ip), hash(ip + vec3(121.0, 343.0, 543.2))) - fp;
+                                brightness += 0.5 / max(0.1, dot(starPos, starPos));
+                            }
+                        }
+                    }
+                }
+                
+                return brightness;
+            }
+            
+            void main() {
+                vec2 uv = vUV * 2.0 - 1.0;
+                uv.x *= resolution.x / resolution.y;
+                
+                vec3 dir = normalize(vec3(uv, 1.0));
+                
+                vec3 pos = vec3(0.0, 0.0, time * speed);
+                float stars = starField(dir * 100.0 + pos);
+                
+                vec3 col = vec3(stars);
+                
+                // Add color tint for distant stars
+                col *= vec3(0.7, 0.8, 1.0);
+                
+                gl_FragColor = vec4(col, 1.0);
+            }
+            `;
+
+            // Wormhole effect - vertex shader
+            BABYLON.Effect.ShadersStore["wormholeVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec2 uv;
+            uniform mat4 worldViewProjection;
+            varying vec2 vUV;
+            void main() {
+                gl_Position = worldViewProjection * vec4(position, 1.0);
+                vUV = uv;
+            }
+            `;
+
+            // Wormhole effect - fragment shader
+            BABYLON.Effect.ShadersStore["wormholeFragmentShader"] = `
+            precision highp float;
+            varying vec2 vUV;
+            uniform float time;
+            uniform vec2 resolution;
+            uniform float speed;
+            uniform float distortion;
+            uniform float vortexIntensity;
+            uniform int inWormhole;
+            
+            #define PI 3.14159265359
+            
+            float hash(float n) {
+                return fract(sin(n) * 43758.5453);
+            }
+            
+            float noise(vec3 x) {
+                vec3 p = floor(x);
+                vec3 f = fract(x);
+                f = f * f * (3.0 - 2.0 * f);
+                
+                float n = p.x + p.y * 57.0 + p.z * 113.0;
+                return mix(
+                    mix(
+                        mix(hash(n), hash(n + 1.0), f.x),
+                        mix(hash(n + 57.0), hash(n + 58.0), f.x),
+                        f.y),
+                    mix(
+                        mix(hash(n + 113.0), hash(n + 114.0), f.x),
+                        mix(hash(n + 170.0), hash(n + 171.0), f.x),
+                        f.y),
+                    f.z);
+            }
+            
+            float fbm(vec3 p) {
+                float result = 0.0;
+                float amplitude = 0.5;
+                float frequency = 1.0;
+                
+                for (int i = 0; i < 6; i++) {
+                    result += amplitude * noise(p * frequency);
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+                
+                return result;
+            }
+            
+            void main() {
+                vec2 uv = vUV * 2.0 - 1.0;
+                uv.x *= resolution.x / resolution.y;
+                
+                if (inWormhole == 0) {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+                    return;
+                }
+                
+                // Calculate distance from center
+                float dist = length(uv);
+                
+                // Tunnel effect
+                float angle = atan(uv.y, uv.x);
+                float tunnelStrength = 0.1 + 0.9 * (1.0 - smoothstep(0.0, 0.7, dist));
+                
+                // Spiral rotation
+                float spiral = angle / (2.0 * PI) + time * 0.1 * speed;
+                
+                // Distort coordinates for tunnel effect
+                vec2 tunnelUV = vec2(
+                    dist - time * speed * 0.1,
+                    spiral * vortexIntensity
+                );
+                
+                // Create pulsating distortion
+                float pulse = 0.5 + 0.5 * sin(time * 0.5);
+                float distortAmount = distortion * (0.8 + 0.2 * pulse);
+                
+                // Apply noise distortion
+                vec3 noiseCoord = vec3(tunnelUV * 5.0, time * 0.1);
+                float noiseValue = fbm(noiseCoord) * distortAmount;
+                
+                // Create wormhole tunnel rings
+                float rings = sin(tunnelUV.x * 20.0) * 0.5 + 0.5;
+                rings = pow(rings, 2.0);
+                
+                // Combine different effects
+                float wormhole = tunnelStrength * (0.8 + 0.2 * rings + 0.3 * noiseValue);
+                
+                // Create color gradient based on distance and time
+                vec3 color1 = vec3(0.1, 0.3, 0.9);  // Blue core
+                vec3 color2 = vec3(0.6, 0.2, 0.8);  // Purple mid
+                vec3 color3 = vec3(0.1, 0.6, 0.8);  // Cyan outer
+                
+                // Apply color mapping
+                vec3 finalColor = mix(
+                    mix(color1, color2, sin(dist * 5.0 + time) * 0.5 + 0.5),
+                    color3,
+                    noiseValue
+                );
+                
+                // Add glow effect
+                finalColor += vec3(0.1, 0.3, 0.6) * (1.0 - dist) * 0.5;
+                
+                // Add brightness variation
+                finalColor *= 0.8 + 0.4 * pulse;
+                
+                // Apply tunnel alpha
+                float alpha = tunnelStrength;
+                alpha = alpha * (1.0 - smoothstep(0.5, 0.8, dist));
+                
+                // Output final color
+                gl_FragColor = vec4(finalColor, alpha);
+            }
+            `;
+
+            // Space environment - vertex shader
+            BABYLON.Effect.ShadersStore["spaceEnvVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec2 uv;
+            uniform mat4 worldViewProjection;
+            varying vec2 vUV;
+            varying vec3 vPosition;
+            void main() {
+                gl_Position = worldViewProjection * vec4(position, 1.0);
+                vUV = uv;
+                vPosition = position;
+            }
+            `;
+
+            // Space environment - fragment shader
+            BABYLON.Effect.ShadersStore["spaceEnvFragmentShader"] = `
+            precision highp float;
+            varying vec2 vUV;
+            varying vec3 vPosition;
+            uniform float time;
+            uniform vec2 resolution;
+            
+            // Hash function for noise
+            float hash(vec3 p) {
+                p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+                p += dot(p, p.yxz + 33.33);
+                return fract((p.x + p.y) * p.z);
+            }
+            
+            // Basic noise function
+            float noise(vec3 p) {
+                vec3 ip = floor(p);
+                vec3 fp = fract(p);
+                fp = fp * fp * (3.0 - 2.0 * fp);
+                
+                float n = ip.x + ip.y * 157.0 + ip.z * 113.0;
+                return mix(
+                    mix(
+                        mix(hash(vec3(n, n+1.0, n+113.0)), hash(vec3(n+1.0, n+1.0, n+113.0)), fp.x),
+                        mix(hash(vec3(n, n+1.0+157.0, n+113.0)), hash(vec3(n+1.0, n+1.0+157.0, n+113.0)), fp.x),
+                        fp.y),
+                    mix(
+                        mix(hash(vec3(n, n+1.0, n+113.0+1.0)), hash(vec3(n+1.0, n+1.0, n+113.0+1.0)), fp.x),
+                        mix(hash(vec3(n, n+1.0+157.0, n+113.0+1.0)), hash(vec3(n+1.0, n+1.0+157.0, n+113.0+1.0)), fp.x),
+                        fp.y),
+                    fp.z);
+            }
+            
+            // Fractal Brownian motion (FBM) for more organic noise
+            float fbm(vec3 p) {
+                float result = 0.0;
+                float amp = 0.5;
+                for (int i = 0; i < 6; i++) {
+                    result += amp * noise(p);
+                    p *= 2.0;
+                    amp *= 0.5;
+                }
+                return result;
+            }
+            
+            // Creates a nebula effect
+            vec4 nebula(vec3 dir, float time) {
+                // Base color for the nebula
+                vec3 color1 = vec3(0.1, 0.2, 0.4); // Dark blue
+                vec3 color2 = vec3(0.6, 0.1, 0.3); // Purplish
+                vec3 color3 = vec3(0.1, 0.3, 0.6); // Medium blue
+                
+                // Slowly moving noise coordinates
+                vec3 p = dir * 10.0 + vec3(time * 0.05);
+                
+                // Generate different layers of noise
+                float n1 = fbm(p * 1.0);
+                float n2 = fbm(p * 2.0 + vec3(100.0));
+                float n3 = fbm(p * 0.5 - vec3(50.0));
+                
+                // Combine the noise layers
+                float nebulaDensity = n1 * n2 * 2.0 * (0.5 + 0.5 * n3);
+                nebulaDensity = pow(nebulaDensity, 3.0); // Increase contrast
+                
+                // Create color variation based on position
+                float colorMix = fbm(p * 0.1);
+                vec3 nebulaColor = mix(color1, color2, colorMix);
+                nebulaColor = mix(nebulaColor, color3, n3 * 0.5);
+                
+                // Final nebula color with density
+                return vec4(nebulaColor, nebulaDensity * 0.6);
+            }
+            
+            // Creates stars with twinkling effect
+            float stars(vec3 dir, float time) {
+                vec3 p = dir * 100.0;
+                float stars = 0.0;
+                
+                // Several layers of stars at different depths
+                for (int i = 0; i < 3; i++) {
+                    float scale = pow(2.0, float(i));
+                    vec3 starP = p * scale + vec3(time * float(i) * 0.1);
+                    float starLayer = pow(noise(floor(starP * 10.0)), 20.0) * 2.0;
+                    
+                    // Add twinkling effect
+                    float twinkle = 0.5 + 0.5 * sin(time * (1.0 + hash(floor(starP * 10.0)) * 5.0) + hash(floor(starP)) * 6.28);
+                    starLayer *= twinkle;
+                    
+                    stars += starLayer / scale;
+                }
+                
+                return stars;
+            }
+            
+            // Main function
+            void main() {
+                // Normalized direction vector from center
+                vec2 uv = vUV * 2.0 - 1.0;
+                uv.x *= resolution.x / resolution.y;
+                vec3 dir = normalize(vec3(uv, 1.0));
+                
+                // Create stars
+                float starBrightness = stars(dir, time);
+                vec3 starColor = vec3(0.95, 0.95, 1.0) * starBrightness;
+                
+                // Create nebula
+                vec4 nebulaEffect = nebula(dir, time);
+                
+                // Combine effects
+                vec3 finalColor = starColor;
+                finalColor = mix(finalColor, nebulaEffect.rgb, nebulaEffect.a);
+                
+                // Adjust overall brightness
+                finalColor = pow(finalColor, vec3(0.8)); // Gamma correction for more visible stars
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+            `;
+
+            // Create a skybox
+            const skybox = BABYLON.MeshBuilder.CreateBox("skybox", { size: 1000 }, scene);
+            skybox.infiniteDistance = true;
+
+            // Create space environment material
+            const spaceEnvMaterial = new BABYLON.ShaderMaterial("spaceEnvMaterial", scene, {
+                vertex: "spaceEnv",
+                fragment: "spaceEnv",
+            }, {
+                attributes: ["position", "uv"],
+                uniforms: ["world", "worldViewProjection", "time", "resolution"]
+            });
+            spaceEnvMaterial.setVector2("resolution", new BABYLON.Vector2(canvas.width, canvas.height));
+            spaceEnvMaterial.backFaceCulling = false;
+            skybox.material = spaceEnvMaterial;
+
+            // Create star field plane
+            const starFieldPlane = BABYLON.MeshBuilder.CreatePlane("starFieldPlane", { size: 200 }, scene);
+            starFieldPlane.position.z = 100;
+
+            // Star field material
+            const starFieldMaterial = new BABYLON.ShaderMaterial("starFieldMaterial", scene, {
+                vertex: "starField",
+                fragment: "starField",
+            }, {
+                attributes: ["position", "uv"],
+                uniforms: ["world", "worldViewProjection", "time", "resolution", "speed"]
+            });
+            starFieldMaterial.setVector2("resolution", new BABYLON.Vector2(canvas.width, canvas.height));
+            starFieldMaterial.setFloat("speed", 0.5);
+            starFieldPlane.material = starFieldMaterial;
+
+            // Create wormhole tunnel
+            const wormholeTunnel = BABYLON.MeshBuilder.CreateTube(
+                "wormholeTunnel",
+                {
+                    path: [
+                        new BABYLON.Vector3(0, 0, -30),
+                        new BABYLON.Vector3(0, 0, 30)
+                    ],
+                    radius: 15,
+                    tessellation: 64,
+                    updatable: true,
+                    cap: BABYLON.Mesh.CAP_ALL
+                },
+                scene
+            );
+
+            // Wormhole material
+            const wormholeMaterial = new BABYLON.ShaderMaterial("wormholeMaterial", scene, {
+                vertex: "wormhole",
+                fragment: "wormhole",
+            }, {
+                attributes: ["position", "uv"],
+                uniforms: ["world", "worldViewProjection", "time", "resolution", "speed", "distortion", "vortexIntensity", "inWormhole"]
+            });
+            wormholeMaterial.setVector2("resolution", new BABYLON.Vector2(canvas.width, canvas.height));
+            wormholeMaterial.setFloat("speed", 1.0);
+            wormholeMaterial.setFloat("distortion", 1.0);
+            wormholeMaterial.setFloat("vortexIntensity", 1.0);
+            wormholeMaterial.setInt("inWormhole", 0);
+            wormholeMaterial.backFaceCulling = false;
+            wormholeMaterial.alphaMode = BABYLON.Engine.ALPHA_COMBINE;
+            wormholeTunnel.material = wormholeMaterial;
+            wormholeTunnel.visibility = 0;
+
+            // Celestial destinations
+            const destinations = [
+                {
+                    name: "Alpha Centauri",
+                    description: "Nearest star system to Earth, 4.37 light-years away",
+                    travelTime: 10, // seconds in simulation
+                    postWormholeScene: "brightBlue"
+                },
+                {
+                    name: "Andromeda Galaxy",
+                    description: "Spiral galaxy 2.5 million light-years from Earth",
+                    travelTime: 15, // seconds in simulation
+                    postWormholeScene: "purpleRed"
+                },
+                {
+                    name: "Sagittarius A*",
+                    description: "Supermassive black hole at the center of our galaxy",
+                    travelTime: 20, // seconds in simulation
+                    postWormholeScene: "darkOrange"
+                }
+            ];
+
+            // Current destination
+            let currentDestination = null;
+            
+            // Set destination handlers
+            destButtons.forEach((btn, index) => {
+                btn.addEventListener("click", () => {
+                    currentDestination = destinations[index];
+                    destinationText.text = `Destination: ${currentDestination.name}`;
+                    statusText.text = "Ready for wormhole jump";
+                });
+            });
+
+            // Wormhole travel state
+            let inWormhole = false;
+            let wormholeStartTime = 0;
+            let travelProgress = 0;
+            let exitingWormhole = false;
+            let postWormholeTime = 0;
+            
+            // Start travel button handler
+            startTravelBtn.addEventListener("click", () => {
+                if (!currentDestination) {
+                    statusText.text = "Please select a destination first!";
+                    return;
+                }
+                
+                if (!inWormhole) {
+                    inWormhole = true;
+                    wormholeStartTime = performance.now() / 1000;
+                    wormholeMaterial.setInt("inWormhole", 1);
+                    wormholeTunnel.visibility = 1;
+                    travelProgress = 0;
+                    exitingWormhole = false;
+                    
+                    statusText.text = `Entering wormhole to ${currentDestination.name}...`;
+                    
+                    // Add camera shake effect
+                    const shakeAnimation = new BABYLON.Animation(
+                        "cameraShake", 
+                        "position", 
+                        30, 
+                        BABYLON.Animation.ANIMATIONTYPE_VECTOR3, 
+                        BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE
+                    );
+                    
+                    const shakeKeys = [];
+                    for (let i = 0; i < 10; i++) {
+                        shakeKeys.push({
+                            frame: i,
+                            value: new BABYLON.Vector3(
+                                (Math.random() - 0.5) * 0.5,
+                                (Math.random() - 0.5) * 0.5,
+                                camera.position.z
+                            )
+                        });
+                    }
+                    
+                    shakeAnimation.setKeys(shakeKeys);
+                    camera.animations = [shakeAnimation];
+                    scene.beginAnimation(camera, 0, 9, true, 1.0);
+                }
+            });
+            
+            // Exit travel button handler
+            exitTravelBtn.addEventListener("click", () => {
+                if (inWormhole && !exitingWormhole) {
+                    exitingWormhole = true;
+                    statusText.text = "Exiting wormhole...";
+                }
+            });
+
+            // Custom post-wormhole scenes
+            const createCustomScene = (type) => {
+                // Update space environment shader parameters based on destination
+                switch(type) {
+                    case "brightBlue":
+                        skybox.material = new BABYLON.StandardMaterial("blueSky", scene);
+                        skybox.material.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.6);
+                        skybox.material.backFaceCulling = false;
+                        // Add a bright star
+                        const star = BABYLON.MeshBuilder.CreateSphere("star", {diameter: 50}, scene);
+                        star.position = new BABYLON.Vector3(0, 0, 200);
+                        star.material = new BABYLON.StandardMaterial("starMat", scene);
+                        star.material.emissiveColor = new BABYLON.Color3(0.9, 0.9, 1.0);
+                        break;
+                        
+                    case "purpleRed":
+                        skybox.material = new BABYLON.StandardMaterial("purpleSky", scene);
+                        skybox.material.emissiveColor = new BABYLON.Color3(0.2, 0.05, 0.15);
+                        skybox.material.backFaceCulling = false;
+                        // Add spiral galaxy
+                        const galaxyPlane = BABYLON.MeshBuilder.CreatePlane("galaxyPlane", {size: 200}, scene);
+                        galaxyPlane.position = new BABYLON.Vector3(0, 0, 150);
+                        galaxyPlane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+                        const galaxyMat = new BABYLON.StandardMaterial("galaxyMat", scene);
+                        galaxyMat.emissiveColor = new BABYLON.Color3(0.6, 0.1, 0.3);
+                        galaxyMat.diffuseTexture = new BABYLON.Texture("https://assets.babylonjs.com/textures/spiralgalaxy.jpg", scene);
+                        galaxyMat.diffuseTexture.hasAlpha = true;
+                        galaxyMat.useAlphaFromDiffuseTexture = true;
+                        galaxyPlane.material = galaxyMat;
+                        break;
+
+                    case "darkOrange":
+                        skybox.material = new BABYLON.StandardMaterial("blackholeSky", scene);
+                        skybox.material.emissiveColor = new BABYLON.Color3(0.1, 0.05, 0.02);
+                        skybox.material.backFaceCulling = false;
+    
+                    // Add black hole
+                    const blackHole = BABYLON.MeshBuilder.CreateDisc("blackHole", {radius: 30, tessellation: 64}, scene);
+                    blackHole.position = new BABYLON.Vector3(0, 0, 150);
+                    blackHole.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+                    
+                    const blackHoleMat = new BABYLON.StandardMaterial("blackHoleMat", scene);
+                    blackHoleMat.emissiveColor = new BABYLON.Color3(0, 0, 0);
+                    
+                    // Add accretion disk
+                    const accretionDisk = BABYLON.MeshBuilder.CreateTorus("accretionDisk", {
+                        diameter: 80, 
+                        thickness: 20, 
+                        tessellation: 64
+                    }, scene);
+                    accretionDisk.position = new BABYLON.Vector3(0, 0, 150);
+                    accretionDisk.rotation.x = Math.PI / 2;
+                    
+                    const accretionMat = new BABYLON.StandardMaterial("accretionMat", scene);
+                    accretionMat.emissiveColor = new BABYLON.Color3(0.8, 0.3, 0.1);
+                    accretionDisk.material = accretionMat;
+                    
+                    blackHole.material = blackHoleMat;
+                    break;
+                }
+            };
+
+// Reset to default space scene
+const resetScene = () => {
+    // Remove any custom meshes
+    scene.meshes.forEach(mesh => {
+        if (!["skybox", "starFieldPlane", "wormholeTunnel"].includes(mesh.name)) {
+            mesh.dispose();
+        }
+    });
+    
+    // Reset skybox material
+    skybox.material = spaceEnvMaterial;
+};
+
+// Main render loop
+let time = 0;
+engine.runRenderLoop(() => {
+    time = performance.now() / 1000;
+    
+    // Update shader uniforms
+    wormholeMaterial.setFloat("time", time);
+    wormholeMaterial.setFloat("speed", parseFloat(speedSlider.value));
+    wormholeMaterial.setFloat("distortion", parseFloat(distortionSlider.value));
+    wormholeMaterial.setFloat("vortexIntensity", parseFloat(vortexSlider.value));
+    starFieldMaterial.setFloat("time", time);
+    spaceEnvMaterial.setFloat("time", time);
+    
+    // Handle wormhole travel progress
+    if (inWormhole && currentDestination) {
+        const elapsed = time - wormholeStartTime;
+        const destinationTime = currentDestination.travelTime;
+        
+        // Calculate travel progress
+        travelProgress = elapsed / destinationTime;
+        
+        if (exitingWormhole) {
+            // Begin exit sequence
+            if (travelProgress < 0.5) {
+                // Force progress to complete at least half the journey
+                travelProgress = Math.max(travelProgress, 0.5);
+            }
+            
+            // Exit wormhole when we reach the destination
+            if (travelProgress >= 1.0) {
+                inWormhole = false;
+                wormholeMaterial.setInt("inWormhole", 0);
+                wormholeTunnel.visibility = 0;
+                statusText.text = `Arrived at ${currentDestination.name}`;
+                
+                // Stop camera shake
+                scene.stopAnimation(camera);
+                camera.position.x = 0;
+                camera.position.y = 0;
+                
+                // Create custom destination scene
+                createCustomScene(currentDestination.postWormholeScene);
+                postWormholeTime = time;
+            } else {
+                // Update status with progress
+                const progressPercent = Math.floor(travelProgress * 100);
+                statusText.text = `Exiting wormhole... (${progressPercent}%)`;
+            }
+        } else {
+            // Normal travel
+            if (travelProgress >= 1.0) {
+                // Automatically begin exit when reaching destination
+                exitingWormhole = true;
+                statusText.text = "Destination reached. Preparing to exit wormhole...";
+            } else {
+                // Update status with progress
+                const progressPercent = Math.floor(travelProgress * 100);
+                statusText.text = `Traveling to ${currentDestination.name}... (${progressPercent}%)`;
+            }
+        }
+    }
+    
+    // Return to normal space after some time at destination
+    if (!inWormhole && postWormholeTime > 0) {
+        const timeAtDestination = time - postWormholeTime;
+        if (timeAtDestination > 15) { // Stay 15 seconds at destination
+            resetScene();
+            postWormholeTime = 0;
+            statusText.text = "Ready for next wormhole jump";
+        }
+    }
+    
+    scene.render();
+});
+
+// Handle window resize
+window.addEventListener("resize", () => {
+    engine.resize();
+    wormholeMaterial.setVector2("resolution", new BABYLON.Vector2(canvas.width, canvas.height));
+    starFieldMaterial.setVector2("resolution", new BABYLON.Vector2(canvas.width, canvas.height));
+    spaceEnvMaterial.setVector2("resolution", new BABYLON.Vector2(canvas.width, canvas.height));
+});
+};
+
+window.addEventListener("DOMContentLoaded", start);
+</script>
+</body>
+</html>

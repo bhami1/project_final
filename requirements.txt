@@ -1,0 +1,17 @@
+faiss-cpu
+groq
+langchain-groq
+pandas>=1.0.0
+openpyxl>=3.0.0
+langchain_google_genai
+langchain
+streamlit
+langchain_community
+python-dotenv
+PyPDF2
+transformers
+FastApi
+uvicorn 
+jinja2 
+passlib 
+python-multipart

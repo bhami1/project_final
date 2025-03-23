@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Solar System Visualization</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+
+    <script>
+        const start = async function() {
+            // Create canvas and engine
+            const canvas = document.getElementById("renderCanvas");
+            const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+
+            // Create scene
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+
+            // Create camera
+            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 180, new BABYLON.Vector3(0, 0, 0), scene);
+            camera.attachControl(canvas, true);
+            camera.minZ = 0.1;
+            camera.wheelDeltaPercentage = 0.01;
+            camera.upperRadiusLimit = 1000;
+
+            // Setup point light
+            const light = new BABYLON.PointLight("light", new BABYLON.Vector3(0, 0, 0), scene);
+            light.intensity = 50000;
+            light.radius = 0;
+
+            // GUI Setup
+            const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+            const hoverText = new BABYLON.GUI.TextBlock();
+            hoverText.text = "";
+            hoverText.color = "Orange";
+            hoverText.fontSize = 36;
+            hoverText.fontFamily = "Arial";
+            hoverText.paddingTop = "15px";
+            hoverText.paddingBottom = "15px";
+            hoverText.paddingLeft = "20px";
+            hoverText.paddingRight = "20px";
+            hoverText.isVisible = false;
+            advancedTexture.addControl(hoverText);
+
+            const speedSlider = new BABYLON.GUI.Slider();
+            speedSlider.minimum = 0.05;
+            speedSlider.maximum = 1.0;
+            speedSlider.value = 0.05;
+            speedSlider.step = 0.01;
+            speedSlider.height = "30px";
+            speedSlider.width = "300px";
+            speedSlider.left = "30px";
+            speedSlider.top = "30px";
+            speedSlider.color = "#f0cebb";
+            speedSlider.background = "rgba(255, 255, 255, 0.2)";
+            speedSlider.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+            speedSlider.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+            advancedTexture.addControl(speedSlider);
+
+            const sliderLabel = new BABYLON.GUI.TextBlock();
+            sliderLabel.text = "Animation Speed: " + speedSlider.value.toFixed(2) + "x";
+            sliderLabel.color = "white";
+            sliderLabel.fontSize = 24;
+            sliderLabel.left = "30px";
+            sliderLabel.top = "70px";
+            sliderLabel.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+            sliderLabel.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+            advancedTexture.addControl(sliderLabel);
+
+            // Language selection buttons
+            const languagePanel = new BABYLON.GUI.StackPanel();
+            languagePanel.isVertical = true;
+            languagePanel.width = "150px";
+            languagePanel.left = "30px";
+            languagePanel.top = "110px";
+            languagePanel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+            languagePanel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+            advancedTexture.addControl(languagePanel);
+
+            let currentLanguage = "en";
+            const languages = [
+                { name: "English", code: "en" },
+                { name: "Malayalam", code: "ml" },
+                { name: "Hindi", code: "hi" }
+            ];
+
+            const languageButtons = languages.map(lang => {
+                const button = BABYLON.GUI.Button.CreateSimpleButton(`lang_${lang.code}`, lang.name);
+                button.width = "150px";
+                button.height = "30px";
+                button.color = "white";
+                button.background = "rgba(255, 255, 255, 0.2)";
+                button.paddingBottom = "5px";
+                button.onPointerUpObservable.add(() => {
+                    currentLanguage = lang.code;
+                    // Update button visuals to show selection
+                    languageButtons.forEach(btn => {
+                        btn.background = "rgba(255, 255, 255, 0.2)";
+                        btn.color = "#ffffff";
+                    });
+                    button.background = "#f0cebb"; // Highlight selected language
+                    button.color = "#000000"; // Highlight selected language
+                });
+                if (lang.code === "en") button.background = "#f0cebb55"; // Default to English
+                languagePanel.addControl(button);
+                return button;
+            });
+
+            speedSlider.onValueChangedObservable.add((value) => {
+                sliderLabel.text = "Animation Speed: " + value.toFixed(2) + "x";
+            });
+
+            // Language translations
+            const translations = {
+                "en": {
+                    "Sun": "Sun", "Mercury": "Mercury", "Venus": "Venus", "Earth": "Earth",
+                    "Moon": "Moon", "Mars": "Mars", "Phobos": "Phobos", "Deimos": "Deimos",
+                    "Jupiter": "Jupiter", "Io": "Io", "Europa": "Europa", "Ganymede": "Ganymede",
+                    "Callisto": "Callisto", "Saturn": "Saturn", "Mimas": "Mimas", "Enceladus": "Enceladus",
+                    "Tethys": "Tethys", "Dione": "Dione", "Rhea": "Rhea", "Titan": "Titan",
+                    "Iapetus": "Iapetus", "Uranus": "Uranus", "Miranda": "Miranda", "Ariel": "Ariel",
+                    "Umbriel": "Umbriel", "Titania": "Titania", "Oberon": "Oberon", "Neptune": "Neptune",
+                    "Triton": "Triton", "Nereid": "Nereid"
+                },
+                "ml": {
+                    "Sun": "സൂര്യൻ", "Mercury": "ബുധൻ", "Venus": "ശുക്രൻ", "Earth": "ഭൂമി",
+                    "Moon": "ചന്ദ്രൻ", "Mars": "ചൊവ്വ", "Phobos": "ഫോബോസ്", "Deimos": "ഡൈമോസ്",
+                    "Jupiter": "ഗുരു", "Io": "ഐഒ", "Europa": "യൂറോപ്പ", "Ganymede": "ഗാനിമീഡ്",
+                    "Callisto": "കാലിസ്റ്റോ", "Saturn": "ശനി", "Mimas": "മിമസ്", "Enceladus": "എൻസെലാഡസ്",
+                    "Tethys": "ടെഥിസ്", "Dione": "ഡയോൺ", "Rhea": "രിയ", "Titan": "ടൈറ്റൻ",
+                    "Iapetus": "ഐപെറ്റസ്", "Uranus": "യുറേനം", "Miranda": "മിറാണ്ട", "Ariel": "അരിയേൽ",
+                    "Umbriel": "അംബ്രിയേൽ", "Titania": "ടൈറ്റാനിയ", "Oberon": "ഓബെറോൺ", "Neptune": "നെപ്ട്യൂൺ",
+                    "Triton": "ട്രിറ്റൺ", "Nereid": "നെറെയിഡ്"
+                },
+                "hi": {
+                    "Sun": "सूर्य", "Mercury": "बुध", "Venus": "शुक्र", "Earth": "पृथ्वी",
+                    "Moon": "चंद्रमा", "Mars": "मंगल", "Phobos": "फोबोस", "Deimos": "डाइमोस",
+                    "Jupiter": "बृहस्पति", "Io": "आईओ", "Europa": "यूरोपा", "Ganymede": "गैनिमीड",
+                    "Callisto": "कैलिस्टो", "Saturn": "शनि", "Mimas": "मिमास", "Enceladus": "एनसेलाडस",
+                    "Tethys": "टेथिस", "Dione": "डायोनी", "Rhea": "रिया", "Titan": "टाइटन",
+                    "Iapetus": "आईएपेटस", "Uranus": "अरुण", "Miranda": "मिरांडा", "Ariel": "एरियल",
+                    "Umbriel": "अम्ब्रियल", "Titania": "टाइटेनिया", "Oberon": "ओबेरोन", "Neptune": "वरुण",
+                    "Triton": "ट्राइटन", "Nereid": "नेरिड"
+                }
+            };
+
+
+            // Sun Vertex Shader
+            BABYLON.Effect.ShadersStore["sunVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec3 normal;
+            uniform mat4 world;
+            uniform mat4 worldViewProjection;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            void main() {
+                gl_Position = worldViewProjection * vec4(position, 1.0);
+                vPosition = position;
+                vWorldPosition = (world * vec4(position, 1.0)).xyz;
+                vNormal = normalize((world * vec4(normal, 0.0)).xyz);
+            }
+            `;
+
+            // Sun Fragment Shader
+            BABYLON.Effect.ShadersStore["sunFragmentShader"] = `
+            precision highp float;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            uniform float time;
+            uniform vec3 cameraPosition;
+            float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+            float noise(vec3 p) {
+                vec3 i = floor(p);
+                vec3 f = fract(p);
+                vec3 u = f * f * (3.0 - 2.0 * f);
+                return mix(mix(mix(hash(i + vec3(0.0,0.0,0.0)), hash(i + vec3(1.0,0.0,0.0)), u.x),
+                            mix(hash(i + vec3(0.0,1.0,0.0)), hash(i + vec3(1.0,1.0,0.0)), u.x), u.y),
+                        mix(mix(hash(i + vec3(0.0,0.0,1.0)), hash(i + vec3(1.0,0.0,1.0)), u.x),
+                            mix(hash(i + vec3(0.0,1.0,1.0)), hash(i + vec3(1.0,1.0,1.0)), u.x), u.y), u.z);
+            }
+            float fbm(vec3 p) {
+                float v = 0.0;
+                float a = 0.5;
+                vec3 shift = vec3(100.0);
+                for (int i = 0; i < 4; ++i) {
+                    v += a * noise(p);
+                    p = p * 2.0 + shift;
+                    a *= 0.5;
+                }
+                return v;
+            }
+            void main() {
+                vec3 pos = normalize(vPosition);
+                vec2 sphericalUV = vec2(atan(pos.z, pos.x), asin(pos.y));
+                sphericalUV.x = sphericalUV.x * 0.159154943 + 0.5;
+                sphericalUV.y = sphericalUV.y * 0.318309886 + 0.5;
+                
+                vec3 baseColor = mix(vec3(1.0, 0.9, 0.4), vec3(1.0, 0.5, 0.1), length(sphericalUV - 0.5));
+                float spots = fbm(pos * 8.0 + time * 0.1);
+                spots = pow(spots, 3.0);
+                vec3 spotColor = vec3(0.8, 0.4, 0.1) * spots;
+                float detail = fbm(pos * 20.0 + time * 0.05);
+                vec3 detailColor = vec3(0.2, 0.1, 0.0) * detail;
+                vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+                float rim = 1.0 - max(dot(vNormal, viewDir), 0.0);
+                
+                vec3 finalColor = baseColor;
+                finalColor = mix(finalColor, spotColor, spots * 0.8);
+                finalColor += detailColor;
+                finalColor += vec3(1.0, 0.8, 0.2) * pow(rim, 1.5) * 0.4;
+                float pulse = sin(time * 1.5) * 0.03 + 0.97;
+                finalColor *= pulse;
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+            `;
+
+            // Space Vertex Shader
+            BABYLON.Effect.ShadersStore["spaceVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec3 normal;
+            uniform mat4 world;
+            uniform mat4 view;
+            uniform mat4 projection;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            void main() {
+                vPosition = position;
+                vNormal = normal;
+                gl_Position = projection * view * world * vec4(position, 1.0);
+            }
+            `;
+
+            // Space Fragment Shader
+            BABYLON.Effect.ShadersStore["spaceFragmentShader"] = `
+            precision highp float;
+            varying vec3 vPosition;
+            uniform float time;
+            
+            float hash(vec3 p) {
+                p = fract(p * 0.3183099 + 0.1);
+                return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+            }
+            
+            float noise(vec3 x) {
+                vec3 i = floor(x);
+                vec3 f = fract(x);
+                f = f * f * (3.0 - 2.0 * f);
+                return mix(mix(mix(hash(i + vec3(0.0, 0.0, 0.0)), hash(i + vec3(1.0, 0.0, 0.0)), f.x),
+                            mix(hash(i + vec3(0.0, 1.0, 0.0)), hash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+                        mix(mix(hash(i + vec3(0.0, 0.0, 1.0)), hash(i + vec3(1.0, 0.0, 1.0)), f.x),
+                            mix(hash(i + vec3(0.0, 1.0, 1.0)), hash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+            }
+            
+            float fbm(vec3 p) {
+                float v = 0.0;
+                float a = 0.5;
+                vec3 shift = vec3(100.0);
+                for (int i = 0; i < 2; ++i) {
+                    v += a * noise(p);
+                    p = p * 2.0 + shift;
+                    a *= 0.5;
+                }
+                return v;
+            }
+            
+            void main() {
+                vec3 pos = normalize(vPosition) * 10.0 + vec3(time * 0.01);
+                float stars = noise(pos * 100.0);
+                stars = pow(stars, 40.0);
+                float nebula = fbm(pos * 0.5);
+                vec3 nebulaColor = vec3(0.3, 0.2, 0.7) * nebula * 0.8;
+                vec3 color = vec3(0.0);
+                color += vec3(0.8, 0.8, 0.9) * stars;
+                color += nebulaColor;
+                color = mix(vec3(0.0, 0.0, 0.05), color, clamp(color.r + color.g + color.b, 0.0, 1.0));
+                gl_FragColor = vec4(color, 1.0);
+            }
+            `;
+
+            // Space background
+            const shaderMaterialSpace = new BABYLON.ShaderMaterial("spaceShader", scene, {
+                vertex: "space",
+                fragment: "space",
+            }, {
+                attributes: ["position", "normal"],
+                uniforms: ["world", "view", "projection", "time"]
+            });
+            const box = BABYLON.MeshBuilder.CreateBox("box", { size: 10000 }, scene);
+            box.material = shaderMaterialSpace;
+            box.flipFaces();
+
+            // Scaling factors
+            const AU = 30;
+            const planetScale = 1;
+            const moonScale = 1;
+
+            // Sun setup
+            const sun = BABYLON.MeshBuilder.CreateSphere("sun", { diameter: 5 * planetScale, segments: 128 }, scene);
+            const sunMaterial = new BABYLON.ShaderMaterial("sunShader", scene, {
+                vertex: "sun",
+                fragment: "sun",
+            }, {
+                attributes: ["position", "normal"],
+                uniforms: ["world", "worldViewProjection", "time", "cameraPosition"]
+            });
+            sunMaterial.setVector3("cameraPosition", scene.activeCamera.position);
+            sun.material = sunMaterial;
+
+            // Celestial body definitions
+            const celestialData = [
+                {
+                    name: "Mercury", diameter: 0.8, orbit: 0.4, speed: 2.0, color: [0.7, 0.7, 0.7],
+                    metallic: 0.1, roughness: 0.8, rotationSpeed: 0.06, moons: []
+                },
+                {
+                    name: "Venus", diameter: 1.8, orbit: 0.7, speed: 0.8, color: [0.9, 0.6, 0.3],
+                    metallic: 0.05, roughness: 0.6, rotationSpeed: 0.04, moons: []
+                },
+                {
+                    name: "Earth", diameter: 1.8, orbit: 1, speed: 0.5, color: [0.0, 0.6, 0.8],
+                    metallic: 0.0, roughness: 0.5, rotationSpeed: 0.05,
+                    moons: [{ name: "Moon", diameter: 0.5, orbit: 2, speed: 4, color: [0.8, 0.8, 0.8], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.02 }]
+                },
+                {
+                    name: "Mars", diameter: 1.5, orbit: 1.5, speed: 0.4, color: [0.8, 0.4, 0.2],
+                    metallic: 0.1, roughness: 0.7, rotationSpeed: 0.03,
+                    moons: [
+                        { name: "Phobos", diameter: 0.3, orbit: 1, speed: 3, color: [0.6, 0.5, 0.5], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.04 },
+                        { name: "Deimos", diameter: 0.2, orbit: 1.5, speed: 2.5, color: [0.7, 0.6, 0.6], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.03 }
+                    ]
+                },
+                {
+                    name: "Jupiter", diameter: 4, orbit: 5, speed: 0.2, color: [0.9, 0.7, 0.5],
+                    metallic: 0.0, roughness: 0.4, rotationSpeed: 0.02,
+                    moons: [
+                        { name: "Io", diameter: 0.7, orbit: 2, speed: 2.5, color: [1.0, 0.8, 0.3], metallic: 0.1, roughness: 0.7, rotationSpeed: 0.03 },
+                        { name: "Europa", diameter: 0.6, orbit: 3, speed: 2, color: [0.9, 0.9, 0.9], metallic: 0.0, roughness: 0.3, rotationSpeed: 0.025 },
+                        { name: "Ganymede", diameter: 1.0, orbit: 4, speed: 1.5, color: [0.7, 0.7, 0.7], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.02 },
+                        { name: "Callisto", diameter: 0.9, orbit: 5, speed: 1, color: [0.6, 0.6, 0.6], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.015 }
+                    ]
+                },
+                {
+                    name: "Saturn", diameter: 3.5, orbit: 9.5, speed: 0.15, color: [0.8, 0.7, 0.4],
+                    metallic: 0.0, roughness: 0.4, rotationSpeed: 0.015,
+                    rings: { radius: 5, color: [0.7, 0.6, 0.5], metallic: 0.0, roughness: 0.6 },
+                    moons: [
+                        { name: "Mimas", diameter: 0.3, orbit: 1, speed: 3, color: [0.8, 0.8, 0.8], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.04 },
+                        { name: "Enceladus", diameter: 0.4, orbit: 1.5, speed: 2.5, color: [0.9, 0.9, 0.9], metallic: 0.0, roughness: 0.3, rotationSpeed: 0.035 },
+                        { name: "Tethys", diameter: 0.5, orbit: 2, speed: 2, color: [0.8, 0.8, 0.8], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.03 },
+                        { name: "Dione", diameter: 0.6, orbit: 2.5, speed: 1.8, color: [0.7, 0.7, 0.7], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.025 },
+                        { name: "Rhea", diameter: 0.7, orbit: 3, speed: 1.5, color: [0.8, 0.8, 0.8], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.02 },
+                        { name: "Titan", diameter: 1.0, orbit: 4, speed: 1, color: [0.9, 0.6, 0.3], metallic: 0.0, roughness: 0.5, rotationSpeed: 0.015 },
+                        { name: "Iapetus", diameter: 0.8, orbit: 5, speed: 0.8, color: [0.5, 0.5, 0.5], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.01 }
+                    ]
+                },
+                {
+                    name: "Uranus", diameter: 3, orbit: 19, speed: 0.1, color: [0.5, 0.8, 0.8],
+                    metallic: 0.0, roughness: 0.4, rotationSpeed: 0.012,
+                    moons: [
+                        { name: "Miranda", diameter: 0.3, orbit: 1, speed: 3, color: [0.7, 0.7, 0.7], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.04 },
+                        { name: "Ariel", diameter: 0.5, orbit: 1.5, speed: 2.5, color: [0.8, 0.8, 0.8], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.035 },
+                        { name: "Umbriel", diameter: 0.6, orbit: 2, speed: 2, color: [0.6, 0.6, 0.6], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.03 },
+                        { name: "Titania", diameter: 0.8, orbit: 3, speed: 1.5, color: [0.7, 0.7, 0.7], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.02 },
+                        { name: "Oberon", diameter: 0.7, orbit: 4, speed: 1, color: [0.6, 0.6, 0.6], metallic: 0.1, roughness: 0.9, rotationSpeed: 0.015 }
+                    ]
+                },
+                {
+                    name: "Neptune", diameter: 3, orbit: 30, speed: 0.08, color: [0.2, 0.4, 0.8],
+                    metallic: 0.0, roughness: 0.4, rotationSpeed: 0.01,
+                    moons: [
+                        { name: "Triton", diameter: 0.9, orbit: 3, speed: 1.5, color:[0.7, 0.7, 0.8], metallic: 0.1, roughness: 0.7, rotationSpeed: 0.02 },
+                        { name: "Nereid", diameter: 0.4, orbit: 5, speed: 0.8, color: [0.6, 0.6, 0.7], metallic: 0.1, roughness: 0.8, rotationSpeed: 0.01 }
+                    ]
+                }
+            ];
+
+            // Create planets and moons
+            const bodies = [];
+            const orbitLines = [];
+
+            // Create orbit line material
+            const orbitMaterial = new BABYLON.StandardMaterial("orbitMaterial", scene);
+            orbitMaterial.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+            orbitMaterial.alpha = 0.2;
+
+            // Process celestial bodies
+            for (const planetData of celestialData) {
+                // Draw orbit line
+                const orbitPoints = [];
+                const orbitSegments = 100;
+                for (let i = 0; i <= orbitSegments; i++) {
+                    const angle = (i / orbitSegments) * Math.PI * 2;
+                    orbitPoints.push(new BABYLON.Vector3(
+                        Math.cos(angle) * planetData.orbit * AU,
+                        0,
+                        Math.sin(angle) * planetData.orbit * AU
+                    ));
+                }
+                const orbitLine = BABYLON.MeshBuilder.CreateLines(`${planetData.name}Orbit`, { points: orbitPoints }, scene);
+                orbitLine.color = new BABYLON.Color3(0.5, 0.5, 0.5);
+                orbitLine.alpha = 0.3;
+                orbitLines.push(orbitLine);
+
+                // Create planet
+                const planet = BABYLON.MeshBuilder.CreateSphere(planetData.name, { diameter: planetData.diameter * planetScale, segments: 32 }, scene);
+                const planetMat = new BABYLON.PBRMaterial(`${planetData.name}Material`, scene);
+                planetMat.albedoColor = new BABYLON.Color3(...planetData.color);
+                planetMat.metallic = planetData.metallic;
+                planetMat.roughness = planetData.roughness;
+                planet.material = planetMat;
+                
+                // Set planet starting position
+                const randomAngle = Math.random() * Math.PI * 2;
+                planet.position.x = Math.cos(randomAngle) * planetData.orbit * AU;
+                planet.position.z = Math.sin(randomAngle) * planetData.orbit * AU;
+                
+                // Store planet data for animation
+                bodies.push({
+                    mesh: planet,
+                    orbit: planetData.orbit * AU,
+                    speed: planetData.speed,
+                    rotationSpeed: planetData.rotationSpeed,
+                    angle: randomAngle,
+                    moons: [],
+                    type: "planet"
+                });
+
+                // Create planet pivot for moon rotation
+                const planetPivot = new BABYLON.TransformNode(`${planetData.name}Pivot`);
+                planetPivot.position = planet.position.clone();
+
+                // Create rings for Saturn
+                if (planetData.name === "Saturn") {
+                    const innerRadius = planetData.diameter * planetScale * 0.7;
+                    const outerRadius = planetData.rings.radius;
+                    const ringMesh = BABYLON.MeshBuilder.CreateDisc("saturnRings", {
+                        radius: outerRadius,
+                        innerRadius: innerRadius,
+                        tessellation: 64
+                    }, scene);
+                    const ringMat = new BABYLON.PBRMaterial("ringMaterial", scene);
+                    ringMat.albedoColor = new BABYLON.Color3(...planetData.rings.color);
+                    ringMat.metallic = planetData.rings.metallic;
+                    ringMat.roughness = planetData.rings.roughness;
+                    ringMat.alpha = 0.9;
+                    ringMat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                    ringMesh.material = ringMat;
+                    ringMesh.parent = planet;
+                    ringMesh.rotation.x = Math.PI / 2;
+                }
+
+                // Process moons
+                for (const moonData of planetData.moons) {
+                    // Create moon
+                    const moon = BABYLON.MeshBuilder.CreateSphere(moonData.name, { diameter: moonData.diameter * moonScale, segments: 16 }, scene);
+                    const moonMat = new BABYLON.PBRMaterial(`${moonData.name}Material`, scene);
+                    moonMat.albedoColor = new BABYLON.Color3(...moonData.color);
+                    moonMat.metallic = moonData.metallic;
+                    moonMat.roughness = moonData.roughness;
+                    moon.material = moonMat;
+                    
+                    // Create moon pivot
+                    const moonPivot = new BABYLON.TransformNode(`${moonData.name}Pivot`);
+                    moonPivot.parent = planet;
+                    
+                    // Set moon starting position
+                    const moonRandomAngle = Math.random() * Math.PI * 2;
+                    moon.position.x = moonData.orbit;
+                    moon.position.y = 0;
+                    moon.position.z = 0;
+                    moonPivot.rotation.y = moonRandomAngle;
+                    moon.parent = moonPivot;
+                    
+                    // Store moon data for animation
+                    bodies.push({
+                        mesh: moon,
+                        pivot: moonPivot,
+                        orbit: moonData.orbit,
+                        speed: moonData.speed,
+                        rotationSpeed: moonData.rotationSpeed,
+                        angle: moonRandomAngle,
+                        parent: planet,
+                        type: "moon"
+                    });
+                }
+            }
+
+            // Interactive functionality
+            scene.onPointerDown = function(evt, pickResult) {
+                if (pickResult.hit) {
+                    const mesh = pickResult.pickedMesh;
+                    if (mesh.name !== "box") {
+                        // Find the body in our bodies array
+                        const body = bodies.find(b => b.mesh === mesh);
+                        if (body) {
+                            // Update hover text with the translated name
+                            const translatedName = translations[currentLanguage][mesh.name] || mesh.name;
+                            hoverText.text = translatedName;
+                            hoverText.isVisible = true;
+                            
+                            // Focus camera on the selected body
+                            const targetPosition = mesh.getAbsolutePosition().clone();
+                            camera.setTarget(targetPosition);
+                            
+                            // Adjust camera radius based on object size
+                            let radius = mesh.getBoundingInfo().boundingSphere.radius * 5;
+                            radius = Math.max(radius, 5); // Minimum radius
+                            camera.radius = radius;
+                        }
+                    }
+                }
+            };
+
+            scene.onPointerMove = function(evt, pickResult) {
+                if (pickResult.hit) {
+                    const mesh = pickResult.pickedMesh;
+                    if (mesh.name !== "box") {
+                        // Update cursor
+                        canvas.style.cursor = "pointer";
+                        
+                        // Update hover text with translated name
+                        const translatedName = translations[currentLanguage][mesh.name] || mesh.name;
+                        hoverText.text = translatedName;
+                        hoverText.isVisible = true;
+                        
+                        // Update hover text position
+                        const screenPos = BABYLON.Vector3.Project(
+                            mesh.getAbsolutePosition(),
+                            BABYLON.Matrix.Identity(),
+                            scene.getTransformMatrix(),
+                            camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight())
+                        );
+                        hoverText.textHorizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+                        hoverText.textVerticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+                        hoverText.top = `${screenPos.y - 20}px`;
+                        hoverText.left = `${screenPos.x}px`;
+                    } else {
+                        canvas.style.cursor = "default";
+                        hoverText.isVisible = false;
+                    }
+                } else {
+                    canvas.style.cursor = "default";
+                    hoverText.isVisible = false;
+                }
+            };
+
+            // Animation variables
+            let time = 0;
+
+            // Register render loop
+            engine.runRenderLoop(() => {
+                const delta = engine.getDeltaTime() * 0.001 * speedSlider.value;
+                time += delta;
+                
+                // Update shader materials time
+                sunMaterial.setFloat("time", time);
+                shaderMaterialSpace.setFloat("time", time);
+                
+                // Update sun's shader camera position
+                sunMaterial.setVector3("cameraPosition", camera.position);
+                
+                // Animate celestial bodies
+                for (const body of bodies) {
+                    if (body.type === "planet") {
+                        body.angle += delta * body.speed * 0.1;
+                        body.mesh.position.x = Math.cos(body.angle) * body.orbit;
+                        body.mesh.position.z = Math.sin(body.angle) * body.orbit;
+                        body.mesh.rotation.y += delta * body.rotationSpeed;
+                    } else if (body.type === "moon") {
+                        body.pivot.rotation.y += delta * body.speed * 0.5;
+                        body.mesh.rotation.y += delta * body.rotationSpeed;
+                    }
+                }
+
+                scene.render();
+            });
+
+            // Handle window resize
+            window.addEventListener("resize", function() {
+                engine.resize();
+            });
+        };
+
+        window.addEventListener("DOMContentLoaded", start);
+    </script>
+</body>
+</html>

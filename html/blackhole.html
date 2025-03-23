@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Black Hole Visualization</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #infoPanel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="infoPanel">
+        <h3>Black Hole Visualization</h3>
+        <p>Use mouse to rotate view. Scroll to zoom in/out.</p>
+        <p>Features:</p>
+        <ul>
+            <li>Event horizon</li>
+            <li>Accretion disk with heat simulation</li>
+            <li>Gravitational lensing effect</li>
+            <li>Relativistic jet streams</li>
+        </ul>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+
+    <script>
+        const start = async function() {
+            // Create canvas and engine
+            const canvas = document.getElementById("renderCanvas");
+            const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+
+            // Create scene
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+
+            // Create camera
+            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 50, new BABYLON.Vector3(0, 0, 0), scene);
+            camera.attachControl(canvas, true);
+            camera.minZ = 0.1;
+            camera.wheelDeltaPercentage = 0.01;
+            camera.upperRadiusLimit = 200;
+            camera.lowerRadiusLimit = 10;
+
+            // Setup ambient light (low intensity)
+            const ambientLight = new BABYLON.HemisphericLight("ambientLight", new BABYLON.Vector3(0, 1, 0), scene);
+            ambientLight.intensity = 0.1;
+            
+            // Point light for accretion disk
+            const diskLight = new BABYLON.PointLight("diskLight", new BABYLON.Vector3(0, 0, 0), scene);
+            diskLight.intensity = 5;
+            diskLight.diffuse = new BABYLON.Color3(0.7, 0.5, 1.0);
+
+            // GUI setup
+            const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+            // Event Horizon Radius slider
+            const radiusSlider = new BABYLON.GUI.Slider();
+            radiusSlider.minimum = 2;
+            radiusSlider.maximum = 10;
+            radiusSlider.value = 5;
+            radiusSlider.height = "20px";
+            radiusSlider.width = "200px";
+            radiusSlider.color = "#707CFF";
+            radiusSlider.background = "gray";
+            radiusSlider.left = "-70px";
+            radiusSlider.top = "-180px";
+            radiusSlider.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            radiusSlider.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+            advancedTexture.addControl(radiusSlider);
+
+            const radiusLabel = new BABYLON.GUI.TextBlock();
+            radiusLabel.text = "Event Horizon Radius: " + radiusSlider.value.toFixed(1);
+            radiusLabel.color = "white";
+            radiusLabel.fontSize = 14;
+            radiusLabel.left = "-70px";
+            radiusLabel.top = "-200px";
+            radiusLabel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            radiusLabel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+            advancedTexture.addControl(radiusLabel);
+
+            // Disk intensity slider
+            const diskIntensitySlider = new BABYLON.GUI.Slider();
+            diskIntensitySlider.minimum = 0.5;
+            diskIntensitySlider.maximum = 5;
+            diskIntensitySlider.value = 2;
+            diskIntensitySlider.height = "20px";
+            diskIntensitySlider.width = "200px";
+            diskIntensitySlider.color = "#FF7070";
+            diskIntensitySlider.background = "gray";
+            diskIntensitySlider.left = "-70px";
+            diskIntensitySlider.top = "-140px";
+            diskIntensitySlider.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            diskIntensitySlider.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+            advancedTexture.addControl(diskIntensitySlider);
+
+            const diskIntensityLabel = new BABYLON.GUI.TextBlock();
+            diskIntensityLabel.text = "Accretion Disk Intensity: " + diskIntensitySlider.value.toFixed(1);
+            diskIntensityLabel.color = "white";
+            diskIntensityLabel.fontSize = 14;
+            diskIntensityLabel.left = "-70px";
+            diskIntensityLabel.top = "-160px";
+            diskIntensityLabel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            diskIntensityLabel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+            advancedTexture.addControl(diskIntensityLabel);
+
+            // Jet intensity slider
+            const jetIntensitySlider = new BABYLON.GUI.Slider();
+            jetIntensitySlider.minimum = 0;
+            jetIntensitySlider.maximum = 5;
+            jetIntensitySlider.value = 3;
+            jetIntensitySlider.height = "20px";
+            jetIntensitySlider.width = "200px";
+            jetIntensitySlider.color = "#70FFFF";
+            jetIntensitySlider.background = "gray";
+            jetIntensitySlider.left = "-70px";
+            jetIntensitySlider.top = "-100px";
+            jetIntensitySlider.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            jetIntensitySlider.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+            advancedTexture.addControl(jetIntensitySlider);
+
+            const jetIntensityLabel = new BABYLON.GUI.TextBlock();
+            jetIntensityLabel.text = "Relativistic Jet Intensity: " + jetIntensitySlider.value.toFixed(1);
+            jetIntensityLabel.color = "white";
+            jetIntensityLabel.fontSize = 14;
+            jetIntensityLabel.left = "-70px";
+            jetIntensityLabel.top = "-120px";
+            jetIntensityLabel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            jetIntensityLabel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+            advancedTexture.addControl(jetIntensityLabel);
+
+            // Update labels when sliders change
+            radiusSlider.onValueChangedObservable.add((value) => {
+                radiusLabel.text = "Event Horizon Radius: " + value.toFixed(1);
+                // Update event horizon size
+                if (blackHole) {
+                    blackHole.scaling.setAll(value / 5);
+                }
+            });
+
+            diskIntensitySlider.onValueChangedObservable.add((value) => {
+                diskIntensityLabel.text = "Accretion Disk Intensity: " + value.toFixed(1);
+                // Update accretion disk material
+                if (accretionDiskMaterial) {
+                    accretionDiskMaterial.setFloat("intensity", value);
+                }
+                // Update light intensity
+                diskLight.intensity = value * 2.5;
+            });
+
+            jetIntensitySlider.onValueChangedObservable.add((value) => {
+                jetIntensityLabel.text = "Relativistic Jet Intensity: " + value.toFixed(1);
+                // Update jet material
+                if (jetMaterial) {
+                    jetMaterial.setFloat("intensity", value);
+                }
+                // Update jet visibility
+                if (northJet && southJet) {
+                    if (value <= 0.1) {
+                        northJet.visibility = 0;
+                        southJet.visibility = 0;
+                    } else {
+                        northJet.visibility = 1;
+                        southJet.visibility = 1;
+                    }
+                }
+            });
+
+            // Space background shader
+            BABYLON.Effect.ShadersStore["spaceVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec3 normal;
+            attribute vec2 uv;
+            uniform mat4 world;
+            uniform mat4 view;
+            uniform mat4 projection;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            void main() {
+                vPosition = position;
+                vNormal = normal;
+                vUV = uv;
+                gl_Position = projection * view * world * vec4(position, 1.0);
+            }
+            `;
+
+            BABYLON.Effect.ShadersStore["spaceFragmentShader"] = `
+            precision highp float;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            uniform float time;
+            
+            float hash(vec3 p) {
+                p = fract(p * 0.3183099 + 0.1);
+                return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+            }
+            
+            float noise(vec3 x) {
+                vec3 i = floor(x);
+                vec3 f = fract(x);
+                f = f * f * (3.0 - 2.0 * f);
+                
+                return mix(mix(mix(hash(i + vec3(0.0, 0.0, 0.0)), hash(i + vec3(1.0, 0.0, 0.0)), f.x),
+                           mix(hash(i + vec3(0.0, 1.0, 0.0)), hash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+                       mix(mix(hash(i + vec3(0.0, 0.0, 1.0)), hash(i + vec3(1.0, 0.0, 1.0)), f.x),
+                           mix(hash(i + vec3(0.0, 1.0, 1.0)), hash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+            }
+            
+            float fbm(vec3 p) {
+                float value = 0.0;
+                float amplitude = 0.5;
+                float frequency = 1.0;
+                for (int i = 0; i < 5; i++) {
+                    value += amplitude * noise(p * frequency);
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+                return value;
+            }
+            
+            void main() {
+                vec3 dir = normalize(vPosition);
+                vec3 starPos = dir * 100.0 + vec3(time * 0.01);
+                
+                // Stars
+                float stars = pow(noise(starPos * 50.0), 20.0) * 2.0;
+                
+                // Nebula and galaxies
+                float nebula1 = fbm(dir * 3.0 + vec3(0.0, time * 0.02, 0.0));
+                float nebula2 = fbm(dir * 2.0 + vec3(time * 0.01, 0.0, time * 0.015));
+                
+                vec3 color1 = vec3(0.5, 0.0, 1.0) * nebula1 * 0.3;
+                vec3 color2 = vec3(0.0, 0.2, 0.8) * nebula2 * 0.3;
+                
+                // Distant galaxy
+                float galaxy = fbm(dir * 5.0 + vec3(time * 0.005));
+                galaxy = pow(galaxy, 2.0) * 0.3;
+                vec3 galaxyColor = mix(vec3(1.0, 0.8, 0.5), vec3(0.8, 0.2, 0.7), galaxy);
+                
+                // Combine everything
+                vec3 finalColor = vec3(0.0);
+                finalColor += vec3(stars);
+                finalColor += color1 + color2;
+                finalColor += galaxyColor * galaxy;
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+            `;
+
+            // Black Hole Event Horizon Shader
+            BABYLON.Effect.ShadersStore["blackHoleVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec3 normal;
+            attribute vec2 uv;
+            uniform mat4 world;
+            uniform mat4 worldViewProjection;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            varying vec3 vWorldPosition;
+            void main() {
+                gl_Position = worldViewProjection * vec4(position, 1.0);
+                vPosition = position;
+                vWorldPosition = (world * vec4(position, 1.0)).xyz;
+                vNormal = normalize((world * vec4(normal, 0.0)).xyz);
+                vUV = uv;
+            }
+            `;
+
+            BABYLON.Effect.ShadersStore["blackHoleFragmentShader"] = `
+            precision highp float;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            varying vec3 vWorldPosition;
+            uniform vec3 cameraPosition;
+            uniform float time;
+            
+            void main() {
+                vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+                float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 5.0);
+                
+                // Event horizon effect - complete darkness with slight blue edge
+                vec3 color = vec3(0.0, 0.0, 0.0);
+                color += vec3(0.0, 0.0, 0.3) * fresnel * fresnel;
+                
+                // Gravitational distortion effect
+                float distortion = sin(time * 0.5 + vPosition.x * 10.0 + vPosition.y * 8.0 + vPosition.z * 12.0) * 0.03;
+                color += vec3(0.0, 0.1, 0.2) * distortion;
+                
+                gl_FragColor = vec4(color, 1.0);
+            }
+            `;
+
+            // Accretion Disk Shader
+            BABYLON.Effect.ShadersStore["accretionDiskVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec3 normal;
+            attribute vec2 uv;
+            uniform mat4 world;
+            uniform mat4 worldViewProjection;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            uniform float time;
+            void main() {
+                vec3 pos = position;
+                // Add some vertical wave motion
+                pos.y += sin(uv.x * 20.0 + time * 2.0) * 0.1 * sin(uv.y * 15.0);
+                
+                gl_Position = worldViewProjection * vec4(pos, 1.0);
+                vPosition = pos;
+                vNormal = normal;
+                vUV = uv;
+            }
+            `;
+
+            BABYLON.Effect.ShadersStore["accretionDiskFragmentShader"] = `
+            precision highp float;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            uniform float time;
+            uniform float intensity;
+            
+            float hash(float n) {
+                return fract(sin(n) * 43758.5453);
+            }
+            
+            float noise(float x) {
+                float i = floor(x);
+                float f = fract(x);
+                float u = f * f * (3.0 - 2.0 * f);
+                return mix(hash(i), hash(i + 1.0), u);
+            }
+            
+            float fbm(float x) {
+                float v = 0.0;
+                float a = 0.5;
+                float shift = 0.0;
+                for (int i = 0; i < 5; ++i) {
+                    v += a * noise(x);
+                    x = x * 2.0 + shift;
+                    a *= 0.5;
+                }
+                return v;
+            }
+            
+            void main() {
+                // Calculate distance from center (remapped for more visible detail)
+                float dist = length(vPosition.xz);
+                float remap = (1.0 - (dist - 5.0) / 15.0); // Remap dist from [5-20] to [1-0]
+                remap = clamp(remap, 0.0, 1.0);
+                
+                // Time-based rotation angle
+                float angle = atan(vPosition.z, vPosition.x);
+                float rotSpeed = 1.0 - remap; // Inner parts rotate faster
+                float adjustedTime = time * 0.5;
+                float rotOffset = adjustedTime * rotSpeed;
+                
+                // Create turbulent flow patterns
+                float turbulence = fbm(angle * 5.0 + dist * 0.2 - adjustedTime) * 0.5 + 0.5;
+                
+                // Color gradient based on temperature (inner is hotter)
+                vec3 hot = vec3(1.0, 0.8, 0.3); // Yellow-white
+                vec3 warm = vec3(1.0, 0.4, 0.1); // Orange
+                vec3 cool = vec3(0.8, 0.0, 0.8); // Purple-ish
+                
+                // Mix colors based on distance from center
+                vec3 baseColor = mix(hot, warm, smoothstep(0.0, 0.3, 1.0 - remap));
+                baseColor = mix(baseColor, cool, smoothstep(0.3, 1.0, 1.0 - remap));
+                
+                // Apply turbulence
+                baseColor += turbulence * 0.2;
+                
+                // Add bright spots/hotspots that rotate
+                float hotspots = fbm(angle * 3.0 + rotOffset * 2.0 + dist * 0.1) * fbm(dist * 5.0 - time);
+                hotspots = pow(hotspots, 2.0) * 1.5;
+                baseColor += vec3(1.0, 0.9, 0.7) * hotspots * smoothstep(0.6, 1.0, remap);
+                
+                // Energy bands
+                float bands = sin(dist * 3.0 - time * 2.0) * 0.5 + 0.5;
+                bands *= sin(angle * 8.0 + time) * 0.5 + 0.5;
+                baseColor += vec3(0.1, 0.0, 0.2) * bands;
+                
+                // Apply edge falloff for smoother transition
+                float edge = smoothstep(0.0, 0.1, remap) * smoothstep(1.0, 0.8, remap);
+                
+                // Apply intensity
+                baseColor *= intensity;
+                
+                // Final color with alpha for transparency
+                gl_FragColor = vec4(baseColor, edge * 0.95);
+            }
+            `;
+
+            // Relativistic Jet Shader
+            BABYLON.Effect.ShadersStore["jetVertexShader"] = `
+            precision highp float;
+            attribute vec3 position;
+            attribute vec3 normal;
+            attribute vec2 uv;
+            uniform mat4 world;
+            uniform mat4 worldViewProjection;
+            uniform float time;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            
+            void main() {
+                vec3 pos = position;
+                
+                // Add some twisting motion
+                float theta = atan(pos.x, pos.z);
+                float r = length(pos.xz);
+                float twist = sin(pos.y * 0.2 + time) * 0.5;
+                pos.x = r * sin(theta + twist * pos.y * 0.01);
+                pos.z = r * cos(theta + twist * pos.y * 0.01);
+                
+                // Add some pulsing
+                pos.xyz += normal * sin(time * 3.0 + pos.y * 0.2) * 0.1;
+                
+                gl_Position = worldViewProjection * vec4(pos, 1.0);
+                vPosition = pos;
+                vNormal = normal;
+                vUV = uv;
+            }
+            `;
+
+            BABYLON.Effect.ShadersStore["jetFragmentShader"] = `
+            precision highp float;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            uniform float time;
+            uniform float intensity;
+            
+            float hash(vec2 p) {
+                return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+            }
+            
+            float noise(vec2 p) {
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                vec2 u = f * f * (3.0 - 2.0 * f);
+                return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+                          mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+            }
+            
+            float fbm(vec2 p) {
+                float v = 0.0;
+                float a = 0.5;
+                for (int i = 0; i < 5; ++i) {
+                    v += a * noise(p);
+                    p *= 2.0;
+                    a *= 0.5;
+                }
+                return v;
+            }
+            
+            void main() {
+                // Calculate distance from center axis
+                float dist = length(vPosition.xz);
+                float distFromAxis = dist / 2.0; // Normalize to 0-1 range
+                
+                // Calculate height-based gradient
+                float heightGrad = abs(vPosition.y) / 30.0;
+                heightGrad = 1.0 - clamp(heightGrad, 0.0, 1.0);
+                
+                // Create plasma effect
+                float plasma = fbm(vec2(vPosition.y * 0.1 - time, atan(vPosition.z, vPosition.x) * 2.0));
+                plasma += fbm(vec2(vPosition.y * 0.2 + time * 2.0, dist * 0.5));
+                plasma = plasma * 0.5 + 0.5;
+                
+                // Energy pulses traveling along the jet
+                float pulse = sin(vPosition.y * 0.2 - time * 5.0) * 0.5 + 0.5;
+                pulse = pow(pulse, 2.0);
+                
+                // Core energy (brighter in center, fading outward)
+                float core = (1.0 - distFromAxis) * heightGrad;
+                core = pow(core, 1.5);
+                
+                // Combine effects
+                float energy = core + plasma * 0.3 + pulse * 0.2;
+                
+                // Color gradient (blue/cyan core to purple edges)
+                vec3 coreColor = vec3(0.0, 0.8, 1.0); // Bright cyan
+                vec3 midColor = vec3(0.4, 0.2, 1.0);  // Purplish-blue
+                vec3 edgeColor = vec3(0.8, 0.0, 0.8); // Purple
+                
+                vec3 finalColor = mix(coreColor, midColor, distFromAxis);
+                finalColor = mix(finalColor, edgeColor, distFromAxis * distFromAxis);
+                
+                // Apply energy and intensity
+                finalColor *= energy * intensity;
+                
+                // Edge falloff for transparency
+                float alpha = core * (1.0 - distFromAxis * distFromAxis) * intensity;
+                
+                gl_FragColor = vec4(finalColor, alpha * 0.8);
+            }
+            `;
+
+            // Create space background skybox
+            const skyboxMaterial = new BABYLON.ShaderMaterial("skyboxMaterial", scene, {
+                vertex: "space",
+                fragment: "space",
+            }, {
+                attributes: ["position", "normal", "uv"],
+                uniforms: ["world", "view", "projection", "time"]
+            });
+
+            const skybox = BABYLON.MeshBuilder.CreateBox("skybox", {size: 1000}, scene);
+            skybox.material = skyboxMaterial;
+            skybox.infiniteDistance = true;
+            skybox.renderingGroupId = 0;
+
+            // Create black hole
+            const blackHoleSize = 5;
+            const blackHole = BABYLON.MeshBuilder.CreateSphere("blackHole", {diameter: blackHoleSize, segments: 64}, scene);
+            const blackHoleMaterial = new BABYLON.ShaderMaterial("blackHoleMaterial", scene, {
+                vertex: "blackHole",
+                fragment: "blackHole",
+            }, {
+                attributes: ["position", "normal", "uv"],
+                uniforms: ["world", "worldViewProjection", "cameraPosition", "time"]
+            });
+            blackHoleMaterial.setVector3("cameraPosition", camera.position);
+            blackHole.material = blackHoleMaterial;
+            blackHole.renderingGroupId = 1;
+
+            // Create accretion disk
+            const innerRadius = blackHoleSize;
+            const outerRadius = blackHoleSize * 4;
+            const accretionDisk = BABYLON.MeshBuilder.CreateDisc("accretionDisk", {
+                radius: outerRadius,
+                innerRadius: innerRadius,
+                tessellation: 64,
+                sideOrientation: BABYLON.Mesh.DOUBLESIDE
+            }, scene);
+            
+            const accretionDiskMaterial = new BABYLON.ShaderMaterial("accretionDiskMaterial", scene, {
+                vertex: "accretionDisk",
+                fragment: "accretionDisk",
+            }, {
+                attributes: ["position", "normal", "uv"],
+                uniforms: ["world", "worldViewProjection", "time", "intensity"]
+            });
+            accretionDiskMaterial.setFloat("intensity", diskIntensitySlider.value);
+            accretionDiskMaterial.backFaceCulling = false;
+            accretionDiskMaterial.alphaMode = BABYLON.Engine.ALPHA_COMBINE;
+            accretionDisk.material = accretionDiskMaterial;
+            accretionDisk.renderingGroupId = 2;
+
+            // Create relativistic jets
+            const jetHeight = 60;
+            const jetRadius = blackHoleSize / 2;
+            
+            // North pole jet
+            const northJet = BABYLON.MeshBuilder.CreateCylinder("northJet", {
+                height: jetHeight,
+                diameterTop: jetRadius / 3,
+                diameterBottom: jetRadius,
+                tessellation: 24,
+                subdivisions: 20
+            }, scene);
+            northJet.position.y = jetHeight / 2;
+            
+            // South pole jet
+            const southJet = BABYLON.MeshBuilder.CreateCylinder("southJet", {
+                height: jetHeight,
+                diameterTop: jetRadius,
+                diameterBottom: jetRadius / 3,
+                tessellation: 24,
+                subdivisions: 20
+            }, scene);
+            southJet.position.y = -jetHeight / 2;
+            
+            // Create jet material and apply to both jets
+            const jetMaterial = new BABYLON.ShaderMaterial("jetMaterial", scene, {
+                vertex: "jet",
+                fragment: "jet",
+            }, {
+                attributes: ["position", "normal", "uv"],
+                uniforms: ["world", "worldViewProjection", "time", "intensity"]
+            });
+            jetMaterial.setFloat("intensity", jetIntensitySlider.value);
+            jetMaterial.backFaceCulling = false;
+            jetMaterial.alphaMode = BABYLON.Engine.ALPHA_COMBINE;
+            
+            northJet.material = jetMaterial;
+            southJet.material = jetMaterial;
+            northJet.renderingGroupId = 2;
+            southJet.renderingGroupId = 2;
+
+            // Create gravitational lensing effect
+            let distortionTime = 0;
+            const lensPlane = BABYLON.MeshBuilder.CreatePlane("lensPlane", {
+                width: blackHoleSize * 1.5, 
+                height: blackHoleSize * 1.5
+            }, scene);
+            lensPlane.isVisible = false; // Start invisible
+            lensPlane.billboardMode = BABYLON.TransformNode.BILLBOARDMODE_ALL;
+            lensPlane.renderingGroupId = 3;
+
+            // Animation variables
+            let time = 0;
+
+            // Set initial rotation for disk
+            accretionDisk.rotation.x = Math.PI / 6;
+            
+            // Animation loop
+            engine.runRenderLoop(() => {
+                const delta = engine.getDeltaTime() * 0.001;
+                time += delta;
+                
+                // Update shader materials with time
+                skyboxMaterial.setFloat("time", time);
+                blackHoleMaterial.setFloat("time", time);
+                blackHoleMaterial.setVector3("cameraPosition", camera.position);
+                accretionDiskMaterial.setFloat("time", time);
+                jetMaterial.setFloat("time", time);
+                
+                // Rotate accretion disk slowly
+                accretionDisk.rotation.y += delta * 0.1;
+                
+                // Gentle pulsing of the black hole
+                const pulseScale = 1.0 + Math.sin(time * 0.5) * 0.05;
+                blackHole.scaling.setAll(pulseScale * radiusSlider.value / 5);
+                
+                // Render the scene
+                scene.render();
+            });
+
+            // Handle window resize
+            window.addEventListener("resize", function() {
+                engine.resize();
+            });
+
+            // Show loading information
+            const loadingText = new BABYLON.GUI.TextBlock();
+            loadingText.text = "Loading simulation...";
+            loadingText.color = "white";
+            loadingText.fontSize = 24;
+            loadingText.top = "0px";
+            advancedTexture.addControl(loadingText);
+
+            // Remove loading text once the scene is ready
+            scene.executeWhenReady(() => {
+                loadingText.dispose();
+            });
+        };
+
+        // Start the simulation
+        start();
+    </script>
+</body>
+</html>
